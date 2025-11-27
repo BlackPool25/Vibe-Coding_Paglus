@@ -1,0 +1,37 @@
+{
+  "name": "consent-chaincode",
+  "version": "1.0.0",
+  "description": "Hyperledger Fabric chaincode for healthcare consent management - stores only metadata (no PHI)",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "fabric-chaincode-node start",
+    "test": "mocha --recursive ./test --timeout 10000"
+  },
+  "dependencies": {
+    "fabric-contract-api": "2.5.8",
+    "fabric-shim": "2.5.8"
+  },
+  "devDependencies": {
+    "chai": "4.3.10",
+    "mocha": "10.2.0",
+    "sinon": "17.0.1",
+    "sinon-chai": "3.7.0"
+  },
+  "keywords": [
+    "hyperledger",
+    "fabric",
+    "chaincode",
+    "consent",
+    "healthcare"
+  ],
+  "author": "",
+  "license": "Apache-2.0",
+  "_references": {
+    "fabric-contract-api": "https://hyperledger.github.io/fabric-chaincode-node/main/api/",
+    "fabric-samples": "https://github.com/hyperledger/fabric-samples",
+    "fabric-docs": "https://hyperledger-fabric.readthedocs.io/en/latest/chaincode4ade.html"
+  }
+}
