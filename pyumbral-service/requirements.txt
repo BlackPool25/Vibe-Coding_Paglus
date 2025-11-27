@@ -1,0 +1,26 @@
+# pyUmbral microservice dependencies
+# Refs:
+#   - pyUmbral: https://pyumbral.readthedocs.io/ | https://github.com/nucypher/pyUmbral
+#   - FastAPI: https://fastapi.tiangolo.com/
+#   - Vault hvac client: https://developer.hashicorp.com/vault/docs/get-started/developer-qs
+#   - pyPI umbral package: https://pypi.org/project/umbral/
+
+# Core pyUmbral library (proxy re-encryption)
+umbral>=0.3.0
+
+# FastAPI web framework (use latest compatible versions for Python 3.14)
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+
+# Vault client library for Python
+hvac>=2.3.0
+
+# HTTP client for API calls (chaincode/Fabric)
+httpx>=0.28.0
+
+# Pydantic for data validation (included with FastAPI)
+pydantic>=2.10.0
+
+# Testing dependencies
+pytest>=8.3.0
+pytest-asyncio>=0.24.0
