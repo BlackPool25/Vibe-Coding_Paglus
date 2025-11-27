@@ -191,8 +191,10 @@ async function connect() {
  * Creates a stub contract for development/testing when Fabric network is unavailable
  * 
  * Stub simulates chaincode behavior for local development:
- * - checkAccess: Returns hasAccess=true for known orgs
+ * - checkAccess: Returns hasAccess=true for known orgs (unless revoked)
  * - queryResource: Returns metadata from test-config.json if available
+ * 
+ * Reference: https://hyperledger-fabric.readthedocs.io/en/release-2.2/developapps/application.html
  * 
  * @returns {Object} Stub contract with submit/evaluate methods
  */
@@ -209,12 +211,56 @@ function createStubContract() {
   } catch (e) {
     // Ignore - test config not available
   }
+
+  // Try to load attack module to check revoked orgs
+  let attackModule = null;
+  try {
+    attackModule = require('../routes/attack');
+  } catch (e) {
+    // Attack module not available
+  }
   
   return {
     submitTransaction: async (functionName, ...args) => {
       if (process.env.LOG_LEVEL === 'debug') {
         console.debug(`[fabric-client] STUB submitTransaction: ${functionName}(${args.length} args)`);
       }
+      
+      const flatArgs = args.flat();
+      
+      // Handle revokeOrg
+      if (functionName === 'revokeOrg') {
+        const orgId = flatArgs[0];
+        const reason = flatArgs[1] || 'Security policy violation';
+        return Buffer.from(JSON.stringify({
+          success: true,
+          stub: true,
+          orgId,
+          reason,
+          isRevoked: true,
+          txId: 'stub-tx-' + Date.now(),
+          timestamp: new Date().toISOString()
+        }));
+      }
+      
+      // Handle logAccess (including DENIED)
+      if (functionName === 'logAccess') {
+        const resourceId = flatArgs[0];
+        const orgId = flatArgs[1];
+        const action = flatArgs[2];
+        const timestamp = flatArgs[3];
+        return Buffer.from(JSON.stringify({
+          success: true,
+          stub: true,
+          auditId: `audit-${Date.now()}`,
+          resourceId,
+          orgId,
+          action,
+          timestamp,
+          txId: 'stub-tx-' + Date.now()
+        }));
+      }
+      
       // Return stub response
       return Buffer.from(JSON.stringify({
         success: true,
@@ -235,6 +281,15 @@ function createStubContract() {
       if (functionName === 'checkAccess') {
         const resourceId = flatArgs[0];
         const orgId = flatArgs[1];
+        
+        // Check if org is revoked via attack module
+        if (attackModule && attackModule.isOrgRevoked && attackModule.isOrgRevoked(orgId)) {
+          return Buffer.from(JSON.stringify({
+            hasAccess: false,
+            reason: 'Organization access has been revoked',
+            status: 'DENIED'
+          }));
+        }
         
         // Check if resource matches test config
         if (testConfig && resourceId === testConfig.resourceId) {

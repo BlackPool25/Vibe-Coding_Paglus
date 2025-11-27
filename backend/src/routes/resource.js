@@ -35,6 +35,15 @@ const encrypt = require('../crypto/encrypt');
 const vaultClient = require('../crypto/vault-client');
 const fabricClient = require('../fabric-client');
 
+// Import attack simulation module for revoked org checking
+// Reference: https://hyperledger-fabric.readthedocs.io/en/release-2.2/access_control.html
+let attackModule = null;
+try {
+  attackModule = require('./attack');
+} catch (e) {
+  // Attack module not loaded - will not check for revoked orgs locally
+}
+
 const router = express.Router();
 
 // Configuration from environment
@@ -271,6 +280,59 @@ router.get('/:id', async (req, res) => {
   }
 
   try {
+    // Step 0: Check if org is revoked/under attack simulation
+    // First check local attack module state (for immediate revocation)
+    // Then verify with chaincode (for persistent revocation)
+    // Per Fabric access control: https://hyperledger-fabric.readthedocs.io/en/release-2.2/access_control.html
+    let isRevoked = false;
+    let revokeReason = null;
+    
+    // Check local attack module first (immediate effect)
+    if (attackModule && attackModule.isOrgRevoked && attackModule.isOrgRevoked(callerOrgId)) {
+      isRevoked = true;
+      const attackState = attackModule.getAttackState ? attackModule.getAttackState(callerOrgId) : null;
+      revokeReason = attackState?.attackType === 'revoked' 
+        ? 'Organization access has been revoked' 
+        : 'Organization is flagged for security review';
+    }
+    
+    // Also check chaincode for persistent revocation status
+    if (!isRevoked) {
+      try {
+        const chaincodeRevoked = await fabricClient.evaluateTransaction('isOrgRevoked', [callerOrgId]);
+        if (chaincodeRevoked && chaincodeRevoked.isRevoked) {
+          isRevoked = true;
+          revokeReason = chaincodeRevoked.reason || 'Organization access has been revoked';
+        }
+      } catch (error) {
+        // Chaincode check failed - continue with local check result
+        if (process.env.LOG_LEVEL === 'debug') {
+          console.debug(`[resource] Chaincode isOrgRevoked check failed: ${error.message}`);
+        }
+      }
+    }
+    
+    if (isRevoked) {
+      console.warn(`[resource] DENIED: Revoked org ${callerOrgId} attempted access to ${resourceId}`);
+      
+      // Log denied access to blockchain (async)
+      fabricClient.submitTransaction('logAccess', [
+        resourceId,
+        callerOrgId,
+        'DENIED',
+        Math.floor(Date.now() / 1000).toString()
+      ]).catch(err => {
+        console.error(`[resource] Failed to log DENIED access: ${err.message}`);
+      });
+      
+      return res.status(403).json({
+        error: 'Access denied',
+        reason: revokeReason,
+        resourceId: resourceId,
+        status: 'DENIED'
+      });
+    }
+
     // Step 1: Query chaincode to verify access permission
     // Per Fabric docs: https://hyperledger-fabric.readthedocs.io/en/release-2.2/developapps/application.html#evaluate-transaction
     let accessResult;

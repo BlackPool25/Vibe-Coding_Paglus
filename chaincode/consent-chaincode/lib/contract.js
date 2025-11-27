@@ -159,6 +159,9 @@ class ConsentContract extends Contract {
     async grantAccess(ctx, resourceId, granteeOrgId, expiryTimestamp, accessType) {
         console.info('============= START : Grant Access ===========');
 
+        // Normalize orgId to lowercase
+        const normalizedGranteeOrgId = granteeOrgId.toLowerCase();
+
         // Validate inputs
         if (!resourceId || resourceId.trim() === '') {
             throw new Error('Resource ID is required');
@@ -186,20 +189,20 @@ class ConsentContract extends Contract {
             throw new Error(`Resource ${resourceId} does not exist`);
         }
 
-        // Verify grantee organization exists
-        const orgKey = ctx.stub.createCompositeKey(ORG_PREFIX, [granteeOrgId]);
+        // Verify grantee organization exists (use normalized)
+        const orgKey = ctx.stub.createCompositeKey(ORG_PREFIX, [normalizedGranteeOrgId]);
         const orgData = await ctx.stub.getState(orgKey);
         if (!orgData || orgData.length === 0) {
-            throw new Error(`Grantee organization ${granteeOrgId} does not exist`);
+            throw new Error(`Grantee organization ${normalizedGranteeOrgId} does not exist`);
         }
 
-        // Create composite key for access grant
-        const accessKey = ctx.stub.createCompositeKey(ACCESS_PREFIX, [resourceId, granteeOrgId]);
+        // Create composite key for access grant (use normalized)
+        const accessKey = ctx.stub.createCompositeKey(ACCESS_PREFIX, [resourceId, normalizedGranteeOrgId]);
 
         const accessGrant = {
             docType: 'accessGrant',
             resourceId: resourceId,
-            granteeOrgId: granteeOrgId,
+            granteeOrgId: normalizedGranteeOrgId,
             expiryTimestamp: parseInt(expiryTimestamp, 10),
             accessType: accessType.toLowerCase(),
             grantedAt: ctx.stub.getTxTimestamp().seconds.low,
@@ -405,13 +408,33 @@ class ConsentContract extends Contract {
 
     /**
      * Check if an organization has valid (non-expired, active) access to a resource
+     * Also checks if the organization itself is revoked.
+     * 
      * @param {Context} ctx - Transaction context
      * @param {string} resourceId - Resource ID
      * @param {string} orgId - Organization ID to check
      * @returns {string} - JSON string with access check result
      */
     async checkAccess(ctx, resourceId, orgId) {
-        // First check if org is the owner
+        // Normalize orgId to lowercase for consistent key lookup
+        const normalizedOrgId = orgId.toLowerCase();
+        
+        // First check if org is revoked
+        const orgKey = ctx.stub.createCompositeKey(ORG_PREFIX, [normalizedOrgId]);
+        const orgData = await ctx.stub.getState(orgKey);
+        
+        if (orgData && orgData.length > 0) {
+            const org = JSON.parse(orgData.toString());
+            if (org.isRevoked) {
+                return JSON.stringify({
+                    hasAccess: false,
+                    reason: 'Organization access has been revoked',
+                    status: 'DENIED'
+                });
+            }
+        }
+
+        // Check if resource exists and if org is the owner
         const resourceKey = ctx.stub.createCompositeKey(RESOURCE_PREFIX, [resourceId]);
         const resourceData = await ctx.stub.getState(resourceKey);
 
@@ -421,7 +444,8 @@ class ConsentContract extends Contract {
 
         const resource = JSON.parse(resourceData.toString());
 
-        if (resource.ownerOrgId === orgId) {
+        // Normalize owner comparison
+        if (resource.ownerOrgId.toLowerCase() === normalizedOrgId) {
             return JSON.stringify({
                 hasAccess: true,
                 accessType: 'owner',
@@ -429,8 +453,8 @@ class ConsentContract extends Contract {
             });
         }
 
-        // Check for access grant
-        const accessKey = ctx.stub.createCompositeKey(ACCESS_PREFIX, [resourceId, orgId]);
+        // Check for access grant (use normalized orgId)
+        const accessKey = ctx.stub.createCompositeKey(ACCESS_PREFIX, [resourceId, normalizedOrgId]);
         const accessData = await ctx.stub.getState(accessKey);
 
         if (!accessData || accessData.length === 0) {
@@ -463,6 +487,168 @@ class ConsentContract extends Contract {
             expiryTimestamp: accessGrant.expiryTimestamp,
             isOwner: false
         });
+    }
+
+    /**
+     * Revoke an organization's access globally
+     * Marks the organization as revoked, blocking all future access attempts.
+     * 
+     * Reference: https://hyperledger-fabric.readthedocs.io/en/release-2.2/chaincode4ade.html
+     * 
+     * @param {Context} ctx - Transaction context
+     * @param {string} orgId - Organization ID to revoke
+     * @param {string} reason - Reason for revocation
+     * @param {string} timestamp - Unix timestamp of revocation
+     * @returns {string} - JSON string with revocation result
+     */
+    async revokeOrg(ctx, orgId, reason, timestamp) {
+        console.info('============= START : Revoke Organization ===========');
+
+        // Validate inputs
+        if (!orgId || orgId.trim() === '') {
+            throw new Error('Organization ID is required');
+        }
+
+        // Get organization
+        const orgKey = ctx.stub.createCompositeKey(ORG_PREFIX, [orgId]);
+        const orgData = await ctx.stub.getState(orgKey);
+
+        let org;
+        if (orgData && orgData.length > 0) {
+            org = JSON.parse(orgData.toString());
+        } else {
+            // Create a new org record if it doesn't exist
+            org = {
+                docType: 'organization',
+                orgId: orgId,
+                metadata: { name: orgId },
+                registeredAt: ctx.stub.getTxTimestamp().seconds.low
+            };
+        }
+
+        // Mark org as revoked
+        org.isRevoked = true;
+        org.revokedAt = parseInt(timestamp, 10) || ctx.stub.getTxTimestamp().seconds.low;
+        org.revocationReason = reason || 'Security policy violation';
+        org.revokeTxId = ctx.stub.getTxID();
+
+        await ctx.stub.putState(orgKey, Buffer.from(JSON.stringify(org)));
+
+        // Emit event for revocation
+        // Reference: https://hyperledger-fabric.readthedocs.io/en/release-2.2/chaincode4ade.html#chaincode-events
+        const eventPayload = {
+            eventType: 'OrgRevoked',
+            orgId: orgId,
+            reason: org.revocationReason,
+            timestamp: org.revokedAt,
+            txId: ctx.stub.getTxID()
+        };
+        ctx.stub.setEvent('OrgRevoked', Buffer.from(JSON.stringify(eventPayload)));
+
+        console.info('============= END : Revoke Organization ===========');
+        return JSON.stringify(org);
+    }
+
+    /**
+     * Reinstate a revoked organization
+     * 
+     * @param {Context} ctx - Transaction context
+     * @param {string} orgId - Organization ID to reinstate
+     * @returns {string} - JSON string with reinstatement result
+     */
+    async reinstateOrg(ctx, orgId) {
+        console.info('============= START : Reinstate Organization ===========');
+
+        if (!orgId || orgId.trim() === '') {
+            throw new Error('Organization ID is required');
+        }
+
+        const orgKey = ctx.stub.createCompositeKey(ORG_PREFIX, [orgId]);
+        const orgData = await ctx.stub.getState(orgKey);
+
+        if (!orgData || orgData.length === 0) {
+            throw new Error(`Organization ${orgId} does not exist`);
+        }
+
+        const org = JSON.parse(orgData.toString());
+
+        if (!org.isRevoked) {
+            throw new Error(`Organization ${orgId} is not revoked`);
+        }
+
+        // Reinstate the org
+        org.isRevoked = false;
+        org.reinstatedAt = ctx.stub.getTxTimestamp().seconds.low;
+        org.reinstateTxId = ctx.stub.getTxID();
+
+        await ctx.stub.putState(orgKey, Buffer.from(JSON.stringify(org)));
+
+        // Emit event
+        const eventPayload = {
+            eventType: 'OrgReinstated',
+            orgId: orgId,
+            timestamp: org.reinstatedAt,
+            txId: ctx.stub.getTxID()
+        };
+        ctx.stub.setEvent('OrgReinstated', Buffer.from(JSON.stringify(eventPayload)));
+
+        console.info('============= END : Reinstate Organization ===========');
+        return JSON.stringify(org);
+    }
+
+    /**
+     * Check if an organization is revoked
+     * 
+     * @param {Context} ctx - Transaction context
+     * @param {string} orgId - Organization ID to check
+     * @returns {string} - JSON string with revocation status
+     */
+    async isOrgRevoked(ctx, orgId) {
+        const orgKey = ctx.stub.createCompositeKey(ORG_PREFIX, [orgId]);
+        const orgData = await ctx.stub.getState(orgKey);
+
+        if (!orgData || orgData.length === 0) {
+            return JSON.stringify({ isRevoked: false, reason: 'Org not found' });
+        }
+
+        const org = JSON.parse(orgData.toString());
+        
+        return JSON.stringify({
+            isRevoked: org.isRevoked || false,
+            revokedAt: org.revokedAt,
+            reason: org.revocationReason
+        });
+    }
+
+    /**
+     * Query audit logs for a resource
+     * Returns all access events for the given resource
+     * 
+     * @param {Context} ctx - Transaction context
+     * @param {string} resourceId - Resource ID to query audit logs for
+     * @returns {string} - JSON array of audit log entries
+     */
+    async queryAuditLogs(ctx, resourceId) {
+        console.info('============= START : Query Audit Logs ===========');
+
+        // Query all audit logs for this resource using partial composite key
+        const iterator = await ctx.stub.getStateByPartialCompositeKey(AUDIT_PREFIX, [resourceId]);
+        
+        const logs = [];
+        let result = await iterator.next();
+        
+        while (!result.done) {
+            if (result.value && result.value.value) {
+                const log = JSON.parse(result.value.value.toString());
+                logs.push(log);
+            }
+            result = await iterator.next();
+        }
+        
+        await iterator.close();
+
+        console.info('============= END : Query Audit Logs ===========');
+        return JSON.stringify(logs);
     }
 }
 

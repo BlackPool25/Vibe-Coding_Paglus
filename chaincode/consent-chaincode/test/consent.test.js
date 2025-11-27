@@ -487,5 +487,94 @@ describe('ConsentContract', () => {
             expect(access.hasAccess).to.be.false;
             expect(access.reason).to.equal('Access has expired');
         });
+
+        it('should normalize orgId to lowercase for consistent lookup', async () => {
+            // Grant access with lowercase
+            const futureExpiry = String(Math.floor(Date.now() / 1000) + 86400);
+            await contract.grantAccess(ctx, 'patient-001', 'lab-001', futureExpiry, 'read');
+
+            // Check access with uppercase - should still find the grant
+            const result = await contract.checkAccess(ctx, 'patient-001', 'LAB-001');
+            const access = JSON.parse(result);
+
+            expect(access.hasAccess).to.be.true;
+            expect(access.accessType).to.equal('read');
+        });
+
+        it('should normalize owner check (case-insensitive)', async () => {
+            // Query with different case should still return owner access
+            const result = await contract.checkAccess(ctx, 'patient-001', 'HOSPITAL-001');
+            const access = JSON.parse(result);
+
+            expect(access.hasAccess).to.be.true;
+            expect(access.isOwner).to.be.true;
+        });
+
+        it('should return denied for revoked organization', async () => {
+            // Revoke the organization
+            await contract.revokeOrg(ctx, 'lab-001', 'Security breach', String(Date.now()));
+
+            // Check access should return denied
+            const result = await contract.checkAccess(ctx, 'patient-001', 'lab-001');
+            const access = JSON.parse(result);
+
+            expect(access.hasAccess).to.be.false;
+            expect(access.status).to.equal('DENIED');
+            expect(access.reason).to.include('revoked');
+        });
+    });
+
+    describe('#revokeOrg', () => {
+        beforeEach(async () => {
+            await contract.registerOrg(ctx, 'malicious-org', JSON.stringify({ name: 'Malicious Org' }));
+        });
+
+        it('should revoke an organization and emit OrgRevoked event', async () => {
+            const result = await contract.revokeOrg(ctx, 'malicious-org', 'Security breach', String(Date.now()));
+            const org = JSON.parse(result);
+
+            expect(org.isRevoked).to.be.true;
+            expect(org.revocationReason).to.equal('Security breach');
+
+            // Verify event was emitted
+            const events = ctx.stub.getEvents();
+            const revokeEvent = events.find(e => e.name === 'OrgRevoked');
+            expect(revokeEvent).to.exist;
+        });
+
+        it('should create org record if not exists and mark as revoked', async () => {
+            // Revoke an org that doesn't exist yet
+            const result = await contract.revokeOrg(ctx, 'new-malicious-org', 'Suspicious activity', String(Date.now()));
+            const org = JSON.parse(result);
+
+            expect(org.isRevoked).to.be.true;
+            expect(org.orgId).to.equal('new-malicious-org');
+        });
+    });
+
+    describe('#reinstateOrg', () => {
+        beforeEach(async () => {
+            await contract.registerOrg(ctx, 'temp-revoked-org', JSON.stringify({ name: 'Temp Revoked' }));
+            await contract.revokeOrg(ctx, 'temp-revoked-org', 'Temporary suspension', String(Date.now()));
+        });
+
+        it('should reinstate a revoked organization', async () => {
+            const result = await contract.reinstateOrg(ctx, 'temp-revoked-org');
+            const org = JSON.parse(result);
+
+            expect(org.isRevoked).to.be.false;
+            expect(org.reinstatedAt).to.be.a('number');
+        });
+
+        it('should throw error when reinstating non-revoked org', async () => {
+            await contract.reinstateOrg(ctx, 'temp-revoked-org');
+
+            try {
+                await contract.reinstateOrg(ctx, 'temp-revoked-org');
+                expect.fail('Should have thrown an error');
+            } catch (err) {
+                expect(err.message).to.include('not revoked');
+            }
+        });
     });
 });

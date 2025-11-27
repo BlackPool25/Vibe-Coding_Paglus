@@ -15,8 +15,12 @@
  * - Express Backend: backend/src/routes/*.js
  */
 
-// Backend URL - uses Vite proxy in dev, direct URL in production
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+// Backend URL - In dev with Vite proxy use '/api', for direct access use full URL
+// If VITE_API_URL is not set, try direct connection to backend on port 4000
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+
+// Track backend availability
+let backendAvailable = null;
 
 // Default organization ID for demo purposes
 const DEFAULT_ORG_ID = import.meta.env.VITE_ORG_ID || 'org1';
@@ -60,6 +64,9 @@ async function fetchApi(endpoint, options = {}) {
       headers
     });
 
+    // Update backend availability status
+    backendAvailable = true;
+
     // Parse response
     const contentType = response.headers.get('Content-Type') || '';
     let data;
@@ -84,12 +91,36 @@ async function fetchApi(endpoint, options = {}) {
     if (error instanceof ApiError) {
       throw error;
     }
-    // Network or parsing error
+    // Network or parsing error - backend likely unavailable
+    backendAvailable = false;
     throw new ApiError(
       error.message || 'Network error',
       0,
       null
     );
+  }
+}
+
+/**
+ * Check if backend is available (cached result from last request)
+ * @returns {boolean|null} true if available, false if not, null if unknown
+ */
+export function isBackendAvailable() {
+  return backendAvailable;
+}
+
+/**
+ * Ping the backend health endpoint to check availability
+ * @returns {Promise<boolean>}
+ */
+export async function checkBackendHealth() {
+  try {
+    await healthCheck();
+    backendAvailable = true;
+    return true;
+  } catch {
+    backendAvailable = false;
+    return false;
   }
 }
 
@@ -324,6 +355,71 @@ export async function healthCheck() {
 }
 
 // ============================================================
+// ATTACK SIMULATION API
+// Reference: backend/src/routes/attack.js
+// ============================================================
+
+/**
+ * Get current attack simulation state
+ * 
+ * @returns {Promise<{attacks, revokedOrgs}>}
+ */
+export async function getAttackState() {
+  return fetchApi('/simulate-attack');
+}
+
+/**
+ * Toggle attack simulation for an org
+ * 
+ * @param {Object} params - { orgId, nodeId, active, attackType }
+ * @returns {Promise<{success, orgId, attackActive}>}
+ */
+export async function toggleAttack(params) {
+  return fetchApi('/simulate-attack', {
+    method: 'POST',
+    body: JSON.stringify(params)
+  });
+}
+
+/**
+ * Revoke an organization via chaincode
+ * 
+ * @param {string} orgId - Organization to revoke
+ * @param {string} reason - Reason for revocation
+ * @returns {Promise<{success, txId, revokedAt}>}
+ */
+export async function revokeOrg(orgId, reason) {
+  return fetchApi('/simulate-attack/revoke-org', {
+    method: 'POST',
+    body: JSON.stringify({ orgId, reason })
+  });
+}
+
+/**
+ * Reinstate a revoked organization
+ * 
+ * @param {string} orgId - Organization to reinstate
+ * @returns {Promise<{success, reinstatedAt}>}
+ */
+export async function reinstateOrg(orgId) {
+  return fetchApi('/simulate-attack/reinstate-org', {
+    method: 'POST',
+    body: JSON.stringify({ orgId })
+  });
+}
+
+/**
+ * Clear all attack simulations
+ * 
+ * @returns {Promise<{success, clearedCount}>}
+ */
+export async function clearAttacks() {
+  return fetchApi('/simulate-attack', {
+    method: 'DELETE'
+  });
+}
+
+// ============================================================
 // EXPORTS
 // ============================================================
 
@@ -350,6 +446,13 @@ export default {
   
   // Health
   healthCheck,
+  
+  // Attack Simulation
+  getAttackState,
+  toggleAttack,
+  revokeOrg,
+  reinstateOrg,
+  clearAttacks,
   
   // Error class
   ApiError

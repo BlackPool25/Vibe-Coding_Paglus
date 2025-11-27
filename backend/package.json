@@ -5,11 +5,15 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "start:dev": "set VAULT_TOKEN=dev-root-token && set VAULT_ADDR=http://127.0.0.1:8200 && set LOG_LEVEL=debug && node src/server.js",
+    "start:dev": "set VAULT_TOKEN=dev-root-token&& set VAULT_ADDR=http://127.0.0.1:8200&& set LOG_LEVEL=debug&& node src/server.js",
+    "start:bg": "node scripts/start-background.js",
+    "stop": "node scripts/stop-background.js",
     "dev": "node --watch src/server.js",
     "test": "node --test tests/backend/*.test.js",
     "test:api": "node ../tests/backend/api-test.js",
-    "upload:sample": "node scripts/upload-sample.js"
+    "upload:sample": "node scripts/upload-sample.js",
+    "health": "curl -s http://localhost:4000/health | node -e \"console.log(JSON.stringify(JSON.parse(require('fs').readFileSync(0,'utf8')),null,2))\"",
+    "status": "curl -s http://localhost:4000/debug/status | node -e \"console.log(JSON.stringify(JSON.parse(require('fs').readFileSync(0,'utf8')),null,2))\""
   },
   "engines": {
     "node": ">=18.0.0"

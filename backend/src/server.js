@@ -28,6 +28,8 @@ const fabricClient = require('./fabric-client');
 const orgRoutes = require('./routes/org');
 const uploadRoutes = require('./routes/upload');
 const resourceRoutes = require('./routes/resource');
+const attackRoutes = require('./routes/attack');
+const debugRoutes = require('./routes/debug');
 
 // Configuration
 const PORT = process.env.PORT || 4000;
@@ -100,12 +102,14 @@ app.get('/health', async (req, res) => {
 app.use('/org', orgRoutes);
 app.use('/upload', uploadRoutes);
 app.use('/resource', resourceRoutes);
+app.use('/simulate-attack', attackRoutes);
+app.use('/debug', debugRoutes);
 
-// Placeholder routes for future implementation
-app.use('/share', (req, res) => {
-  res.status(501).json({ message: 'Share endpoint not yet implemented' });
-});
+// Share routes - grant/revoke access
+const shareRoutes = require('./routes/share');
+app.use('/share', shareRoutes);
 
+// Placeholder route for audit (future implementation)
 app.use('/audit', (req, res) => {
   res.status(501).json({ message: 'Audit endpoint not yet implemented' });
 });

@@ -20,8 +20,9 @@
 const vault = require('node-vault');
 
 // Vault configuration from environment
+// VAULT_TOKEN takes precedence, fallback to VAULT_DEV_ROOT_TOKEN_ID for docker-compose compatibility
 const VAULT_ADDR = process.env.VAULT_ADDR || 'http://127.0.0.1:8200';
-const VAULT_TOKEN = process.env.VAULT_TOKEN || 'dev-only-token';
+const VAULT_TOKEN = process.env.VAULT_TOKEN || process.env.VAULT_DEV_ROOT_TOKEN_ID || 'dev-only-token';
 
 // KV v2 mount path and org key path prefix
 const KV_MOUNT = 'secret';

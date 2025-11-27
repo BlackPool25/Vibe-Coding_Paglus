@@ -35,6 +35,7 @@ const crypto = require('crypto');
 
 // Import local modules
 const encrypt = require('../crypto/encrypt');
+const vaultClient = require('../crypto/vault-client');
 const ipfsService = require('../services/ipfs');
 const fabricClient = require('../fabric-client');
 
@@ -145,22 +146,51 @@ router.post('/', upload.single('file'), async (req, res) => {
 
     const cid = ipfsResult.cid;
     const backend = ipfsResult.backend;
+    
+    // Generate resourceId from CID (use as unique identifier)
+    const resourceId = fhirId || cid;
+    
+    // Get caller org from header
+    const ownerOrgId = req.headers['x-org-id'] || 'org1';
 
     if (process.env.LOG_LEVEL === 'debug') {
       console.debug(`[upload] Uploaded to ${backend}, CID: ${cid}`);
     }
 
-    // Step 4: Write metadata to blockchain via chaincode
-    // The uploadMeta function stores: CID, SHA256, FHIR type, timestamp
+    // Step 4: Store the encryption key in Vault
+    // Path: secret/data/owner/keys/<resourceId>
+    // Per Vault KV v2 docs: https://developer.hashicorp.com/vault/api-docs/secret/kv/kv-v2
+    try {
+      const vaultPath = `owner/keys/${resourceId}`;
+      await vaultClient.getClient().write(`secret/data/${vaultPath}`, {
+        data: {
+          aesKey: aesKey.toString('hex'),
+          iv: encryptedData.iv.toString('hex'),
+          authTag: encryptedData.authTag.toString('hex'),
+          cid: cid,
+          createdAt: new Date().toISOString()
+        }
+      });
+      
+      if (process.env.LOG_LEVEL === 'debug') {
+        console.debug(`[upload] Stored encryption key in Vault at ${vaultPath}`);
+      }
+    } catch (vaultError) {
+      console.error(`[upload] Vault key storage failed: ${vaultError.message}`);
+      // Continue - key is returned in response for dev purposes
+    }
+
+    // Step 5: Write metadata to blockchain via chaincode
+    // Chaincode uploadMeta signature: (ctx, resourceId, ownerOrgId, cid, sha256, fhirType)
+    // Per chaincode/consent-chaincode/lib/contract.js:67
     let chaincodeResult = null;
     try {
       chaincodeResult = await fabricClient.submitTransaction('uploadMeta', [
+        resourceId,                    // Resource ID (use fhirId or CID)
+        ownerOrgId,                    // Owner organization ID
         cid,                           // IPFS CID
         sha256Hash,                    // SHA-256 of encrypted content
-        fhirType,                      // FHIR resource type
-        fhirId,                        // FHIR resource ID
-        fhirMeta.patientId || '',      // Patient ID (for consent lookup)
-        new Date().toISOString()       // Timestamp
+        fhirType                       // FHIR resource type
       ]);
 
       if (process.env.LOG_LEVEL === 'debug') {
@@ -177,11 +207,11 @@ router.post('/', upload.single('file'), async (req, res) => {
       };
     }
 
-    // Step 5: Store the encryption key securely
-    // In production, this should go to Vault keyed by CID
-    // For now, we include key info in response (development only)
+    // Step 6: Prepare key info for response
+    // In production, this should NOT include actual keys
     const keyInfo = {
-      keyId: `key-${cid.substring(0, 16)}`,
+      keyId: `key-${resourceId}`,
+      vaultPath: `secret/owner/keys/${resourceId}`,
       // WARNING: Never expose actual key in production!
       // This is for development/testing only
       ...(process.env.NODE_ENV !== 'production' && {
@@ -194,10 +224,12 @@ router.post('/', upload.single('file'), async (req, res) => {
     // Return success response
     res.status(201).json({
       success: true,
+      resourceId: resourceId,
       cid: cid,
       sha256: sha256Hash,
       fhirType: fhirType,
       fhirId: fhirId,
+      ownerOrgId: ownerOrgId,
       backend: backend,
       fileSize: {
         original: fileBuffer.length,

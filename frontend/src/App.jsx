@@ -16,6 +16,7 @@ import { Routes, Route, NavLink } from 'react-router-dom';
 import HospitalUpload from './pages/HospitalUpload';
 import PatientPortal from './pages/PatientPortal';
 import AuditViewer from './pages/AuditViewer';
+import AdminControl from './pages/AdminControl';
 
 // Minimal inline styles (no CSS framework)
 const styles = {
@@ -111,6 +112,16 @@ function App() {
             >
               Audit Viewer
             </NavLink>
+            <NavLink 
+              to="/admin" 
+              style={({ isActive }) => ({
+                ...styles.navLink,
+                ...(isActive ? styles.navLinkActive : {}),
+                color: isActive ? '#ffcc00' : 'rgba(255,200,100,0.9)'
+              })}
+            >
+              ⚠️ Admin
+            </NavLink>
           </nav>
         </div>
       </header>
@@ -122,6 +133,7 @@ function App() {
           <Route path="/upload" element={<HospitalUpload />} />
           <Route path="/patient" element={<PatientPortal />} />
           <Route path="/audit" element={<AuditViewer />} />
+          <Route path="/admin" element={<AdminControl />} />
         </Routes>
       </main>
 
