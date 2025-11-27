@@ -1,1 +1,165 @@
+# =========================
+# Node.js
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+*.tgz
+package-lock.json
+yarn.lock
+
+# =========================
+# Python
+# =========================
 *venv/
+venv/
+.venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+pip-log.txt
+pip-delete-this-directory.txt
+
+# =========================
+# IDE / Editor
+# =========================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# =========================
+# OS Generated
+# =========================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# =========================
+# Docker
+# =========================
+*.log
+docker-compose.override.yml
+
+# =========================
+# Hyperledger Fabric
+# =========================
+organizations/
+channel-artifacts/
+*.block
+*.tx
+wallet/
+connection-*.json
+*.pem
+*.crt
+*.key
+
+# =========================
+# IPFS / Web3.Storage
+# =========================
+.ipfs/
+*.car
+
+# =========================
+# HashiCorp Vault
+# =========================
+.vault-token
+vault-data/
+
+# =========================
+# Environment / Secrets
+# =========================
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+*.env
+.envrc
+secrets/
+*.secret
+
+# =========================
+# Test / Coverage
+# =========================
+coverage/
+.nyc_output/
+*.lcov
+.coverage
+htmlcov/
+.tox/
+.nox/
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# =========================
+# Build Artifacts
+# =========================
+build/
+dist/
+out/
+target/
+*.o
+*.a
+*.dll
+*.exe
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+npm-debug.log*
+lerna-debug.log*
+
+# =========================
+# Temporary Files
+# =========================
+tmp/
+temp/
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# =========================
+# Sample Data (optional - uncomment if needed)
+# =========================
+# sample-data/images/*.dcm
+# sample-data/images/*.dicom
