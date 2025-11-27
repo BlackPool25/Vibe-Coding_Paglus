@@ -190,10 +190,25 @@ async function connect() {
 /**
  * Creates a stub contract for development/testing when Fabric network is unavailable
  * 
+ * Stub simulates chaincode behavior for local development:
+ * - checkAccess: Returns hasAccess=true for known orgs
+ * - queryResource: Returns metadata from test-config.json if available
+ * 
  * @returns {Object} Stub contract with submit/evaluate methods
  */
 function createStubContract() {
   console.warn('[fabric-client] Using stub contract - Fabric network not connected');
+  
+  // Load test config if available (from setup-test-data.js)
+  let testConfig = null;
+  try {
+    const configPath = path.join(__dirname, '..', '..', 'scripts', 'test-config.json');
+    if (fs.existsSync(configPath)) {
+      testConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    }
+  } catch (e) {
+    // Ignore - test config not available
+  }
   
   return {
     submitTransaction: async (functionName, ...args) => {
@@ -210,8 +225,74 @@ function createStubContract() {
     },
     evaluateTransaction: async (functionName, ...args) => {
       if (process.env.LOG_LEVEL === 'debug') {
-        console.debug(`[fabric-client] STUB evaluateTransaction: ${functionName}(${args.length} args)`);
+        console.debug(`[fabric-client] STUB evaluateTransaction: ${functionName}(${args.flat()})`);
       }
+      
+      const flatArgs = args.flat();
+      
+      // Handle checkAccess - simulates permission check
+      // Reference: Chaincode contract.js checkAccess function
+      if (functionName === 'checkAccess') {
+        const resourceId = flatArgs[0];
+        const orgId = flatArgs[1];
+        
+        // Check if resource matches test config
+        if (testConfig && resourceId === testConfig.resourceId) {
+          // Owner always has access
+          if (orgId === testConfig.ownerOrg) {
+            return Buffer.from(JSON.stringify({
+              hasAccess: true,
+              accessType: 'owner',
+              isOwner: true
+            }));
+          }
+          // Grantee has read access
+          if (orgId === testConfig.granteeOrg) {
+            return Buffer.from(JSON.stringify({
+              hasAccess: true,
+              accessType: 'read',
+              isOwner: false,
+              expiryTimestamp: Math.floor(Date.now() / 1000) + 86400
+            }));
+          }
+        }
+        
+        // Default: allow access for demo (org1, org2)
+        if (orgId === 'org1' || orgId === 'org2') {
+          return Buffer.from(JSON.stringify({
+            hasAccess: true,
+            accessType: orgId === 'org1' ? 'owner' : 'read',
+            isOwner: orgId === 'org1'
+          }));
+        }
+        
+        return Buffer.from(JSON.stringify({
+          hasAccess: false,
+          reason: 'No access grant found'
+        }));
+      }
+      
+      // Handle queryResource - returns resource metadata
+      if (functionName === 'queryResource') {
+        const resourceId = flatArgs[0];
+        
+        // Check test config first
+        if (testConfig && resourceId === testConfig.resourceId) {
+          return Buffer.from(JSON.stringify({
+            resourceId: testConfig.resourceId,
+            ownerOrgId: testConfig.ownerOrg,
+            cid: testConfig.cid,
+            sha256: testConfig.sha256,
+            fhirType: testConfig.fhirType,
+            uploadedAt: Math.floor(Date.now() / 1000)
+          }));
+        }
+        
+        // Resource not found
+        throw new Error(`Resource ${resourceId} does not exist`);
+      }
+      
+      // Default stub response
       return Buffer.from(JSON.stringify({
         success: true,
         stub: true,

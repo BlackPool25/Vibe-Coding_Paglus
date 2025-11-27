@@ -1,0 +1,9 @@
+{
+  "resourceId": "obs-test-123",
+  "cid": "bafkreigjyqe7it7dxxpcjgvct2q6twi3v6b6korjp7zbok3aqvrtpakevm",
+  "sha256": "c9c409f44fe3bdde249aa29ea1e9d91baf83e53a297ff2172b608563378144ab",
+  "fhirType": "Observation",
+  "ownerOrg": "org1",
+  "granteeOrg": "org2",
+  "createdAt": "2025-11-27T08:17:01.017Z"
+}

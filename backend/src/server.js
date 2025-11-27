@@ -27,6 +27,7 @@ const fabricClient = require('./fabric-client');
 // Import routes
 const orgRoutes = require('./routes/org');
 const uploadRoutes = require('./routes/upload');
+const resourceRoutes = require('./routes/resource');
 
 // Configuration
 const PORT = process.env.PORT || 4000;
@@ -98,6 +99,7 @@ app.get('/health', async (req, res) => {
 // API Routes
 app.use('/org', orgRoutes);
 app.use('/upload', uploadRoutes);
+app.use('/resource', resourceRoutes);
 
 // Placeholder routes for future implementation
 app.use('/share', (req, res) => {
