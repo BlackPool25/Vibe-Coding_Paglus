@@ -1,0 +1,40 @@
+{
+  "name": "decen-health-db-frontend",
+  "version": "1.0.0",
+  "description": "Minimal React frontend for Decentralized Health DB",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3000",
+    "build": "vite build",
+    "preview": "vite preview --port 3000",
+    "lint": "eslint src --ext js,jsx"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.37",
+    "@types/react-dom": "^18.2.15",
+    "@vitejs/plugin-react": "^4.2.0",
+    "vite": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "healthcare",
+    "fhir",
+    "ipfs",
+    "blockchain",
+    "react",
+    "vite"
+  ],
+  "license": "MIT",
+  "_docReferences": {
+    "vite": "https://vitejs.dev/guide/",
+    "react": "https://react.dev/",
+    "reactRouter": "https://reactrouter.com/en/main"
+  }
+}
