@@ -4,8 +4,9 @@
 # - Vault: https://hub.docker.com/r/hashicorp/vault (dev mode per https://developer.hashicorp.com/vault/docs/get-started/developer-qs)
 # - IPFS: https://hub.docker.com/r/ipfs/kubo (official go-ipfs, per https://docs.ipfs.tech/install/run-ipfs-inside-docker/)
 # - Node: https://hub.docker.com/_/node (node:20 for backend/frontend stubs)
-
-version: "3.8"
+#
+# Note: The 'version' attribute is obsolete in Docker Compose v2+ and has been removed.
+# See: https://docs.docker.com/compose/compose-file/04-version-and-name/
 
 services:
   # =============================================================================
@@ -13,7 +14,7 @@ services:
   # Docs: https://developer.hashicorp.com/vault/docs/get-started/developer-qs
   # =============================================================================
   vault:
-    image: hashicorp/vault:1.15
+    image: hashicorp/vault:1.15.6
     container_name: decen-health-vault
     ports:
       - "8200:8200"
@@ -22,14 +23,19 @@ services:
       # https://developer.hashicorp.com/vault/docs/concepts/dev-server
       VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID:-dev-root-token}
       VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+      # Required for CLI commands to use HTTP instead of HTTPS
+      VAULT_ADDR: "http://127.0.0.1:8200"
     cap_add:
       - IPC_LOCK
     command: server -dev
     healthcheck:
-      test: ["CMD", "vault", "status"]
+      # Use wget since vault CLI needs VAULT_ADDR; check /v1/sys/health returns 200
+      # Docs: https://developer.hashicorp.com/vault/api-docs/system/health
+      test: ["CMD", "sh", "-c", "wget --spider --quiet http://127.0.0.1:8200/v1/sys/health || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 10s
     networks:
       - decen-health-net
 
