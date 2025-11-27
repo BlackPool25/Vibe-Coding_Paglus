@@ -26,6 +26,7 @@ const fabricClient = require('./fabric-client');
 
 // Import routes
 const orgRoutes = require('./routes/org');
+const uploadRoutes = require('./routes/upload');
 
 // Configuration
 const PORT = process.env.PORT || 4000;
@@ -96,12 +97,9 @@ app.get('/health', async (req, res) => {
 
 // API Routes
 app.use('/org', orgRoutes);
+app.use('/upload', uploadRoutes);
 
 // Placeholder routes for future implementation
-app.use('/upload', (req, res) => {
-  res.status(501).json({ message: 'Upload endpoint not yet implemented' });
-});
-
 app.use('/share', (req, res) => {
   res.status(501).json({ message: 'Share endpoint not yet implemented' });
 });

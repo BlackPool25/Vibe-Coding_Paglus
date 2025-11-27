@@ -8,28 +8,33 @@
     "start:dev": "set VAULT_TOKEN=dev-root-token && set VAULT_ADDR=http://127.0.0.1:8200 && set LOG_LEVEL=debug && node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test tests/backend/*.test.js",
-    "test:api": "node ../tests/backend/api-test.js"
+    "test:api": "node ../tests/backend/api-test.js",
+    "upload:sample": "node scripts/upload-sample.js"
   },
   "engines": {
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "express": "4.18.2",
-    "node-vault": "0.10.2",
-    "axios": "1.6.2",
-    "@web3-storage/w3up-client": "12.5.1",
-    "fabric-network": "2.2.20",
-    "fabric-ca-client": "2.2.20"
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
+    "node-vault": "^0.10.2",
+    "axios": "^1.6.2",
+    "form-data": "^4.0.0",
+    "@web3-storage/w3up-client": "^12.5.1",
+    "fabric-network": "^2.2.20",
+    "fabric-ca-client": "^2.2.20"
   },
   "devDependencies": {
-    "@types/node": "20.10.0"
+    "@types/node": "^20.10.0"
   },
   "keywords": [
     "hyperledger",
     "fabric",
     "vault",
     "healthcare",
-    "blockchain"
+    "blockchain",
+    "ipfs",
+    "web3storage"
   ],
   "license": "MIT",
   "repository": {
@@ -38,8 +43,11 @@
   },
   "_docReferences": {
     "express": "https://expressjs.com/en/4x/api.html",
+    "multer": "https://github.com/expressjs/multer",
     "node-vault": "https://developer.hashicorp.com/vault/docs/get-started/developer-qs",
     "fabric-network": "https://hyperledger-fabric.readthedocs.io/en/release-2.2/developapps/application.html",
-    "web3-storage": "https://web3.storage/docs/"
+    "web3-storage": "https://web3.storage/docs/",
+    "web3-storage-w3up": "https://web3.storage/docs/w3up-client/",
+    "ipfs-http-api": "https://docs.ipfs.tech/reference/kubo/rpc/"
   }
 }
